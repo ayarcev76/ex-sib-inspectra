@@ -1,0 +1,49 @@
+# Автоматическая конвертация окончаний строк
+* text=auto eol=lf
+
+# Python
+*.py text eol=lf
+*.pyi text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+
+# Alembic миграции
+backend/alembic/**/*.py text eol=lf
+
+# JavaScript / TypeScript / React
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Flutter / Dart
+*.dart text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Docker
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+docker-compose*.yml text eol=lf
+
+# Документация
+*.md text eol=lf
+
+# Бинарные файлы (не трогать)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
