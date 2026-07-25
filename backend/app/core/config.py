@@ -9,18 +9,19 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",
         env_file_encoding="utf-8",
-        case_sensitive=False,  # Позволяет читать POSTGRES_PASSWORD как postgres_password
+        case_sensitive=False,
         extra="ignore",
     )
 
     # --- Application ---
+    APP_NAME: str = "ЕХ:Инспектра-ИПБ"
     ENVIRONMENT: str = "development"
     SECRET_KEY: str = "CHANGE_ME_generate_with_openssl_rand_hex_32"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # --- Database (строго как в .env) ---
+    # --- Database ---
     POSTGRES_USER: str = "exsib"
     POSTGRES_PASSWORD: str = "exsib_strong_password_123"
     POSTGRES_DB: str = "exsib"
@@ -38,6 +39,9 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "inspections"
     MINIO_USE_SSL: bool = False
 
+    # --- CORS ---
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
     @property
     def DATABASE_URL_SYNC(self) -> str:
         """URL для Alembic и sync-операций (использует psycopg)"""
@@ -47,6 +51,11 @@ class Settings(BaseSettings):
     def DATABASE_URL_ASYNC(self) -> str:
         """URL для асинхронного движка FastAPI (использует asyncpg)"""
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.DB_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Возвращает список разрешенных CORS-оригинов."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 settings = Settings()

@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 
 from app.core.database import SessionLocal, engine
 from app.models.users import Role, User
-from app.models.references import PE, WorkType, ZPBRule
+from app.models.references import PE, Department, WorkType, ZPBRule
 
 # Настройка хеширования паролей (bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -96,6 +96,35 @@ def seed_pes(db: Session):
     print("✅ Производственные единицы (5 шт.) добавлены/проверены.")
 
 
+def seed_departments(db: Session):
+    """Наполнение справочника подразделений (примеры для каждого ПЕ)."""
+    # Получаем все ПЕ и создаем мапу code -> id
+    pes = db.query(PE).all()
+    pe_map = {pe.code: pe.id for pe in pes}
+    
+    departments_data = [
+        ("Цех добычи и транспортировки", pe_map.get("BMU")),
+        ("Цех обогащения", pe_map.get("PHOSPHORIT")),
+        ("Цех производства аммиака", pe_map.get("NAK_AZOT")),
+        ("Цех производства карбамида", pe_map.get("NEV_AZOT")),
+        ("Горный цех", pe_map.get("SEVERO_ZAPAD")),
+    ]
+    
+    for name, pe_id in departments_data:
+        if pe_id:
+            # Проверяем, нет ли уже такого подразделения в этом ПЕ (защита от дубликатов при повторном запуске)
+            exists = db.query(Department).filter(
+                Department.name == name, 
+                Department.pe_id == pe_id
+            ).first()
+            
+            if not exists:
+                db.add(Department(name=name, pe_id=pe_id))
+                
+    db.commit()
+    print("✅ Подразделения (5 шт.) добавлены/проверены.")
+
+
 def seed_admin_user(db: Session):
     """Создание тестового пользователя-администратора."""
     admin_email = "admin@exsib.ru"
@@ -138,6 +167,7 @@ def main():
         seed_zpb_rules(db)
         seed_work_types(db)
         seed_pes(db)
+        seed_departments(db)  # <-- ДОБАВЛЕНО
         seed_admin_user(db)
         print("\n🎉 Seed-скрипт успешно завершен! База данных готова к работе.")
     except Exception as e:

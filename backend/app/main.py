@@ -7,8 +7,8 @@ from app.api.v1.router import router as v1_router
 
 app = FastAPI(
     title=settings.APP_NAME,
-    version="0.1.0",
-    description="Система инспекций безопасности ЕХ:СИБ",
+    version="0.2.0",
+    description="Информационная система инспекций производственной безопасности ЕХ:Инспектра-ИПБ",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -29,4 +29,4 @@ app.include_router(v1_router, prefix="/api/v1")
 
 @app.get("/", tags=["system"])
 def root():
-    return {"message": "ЕХ:СИБ Inspectra API is running"}
+    return {"message": "ЕХ:Инспектра-ИПБ API is running"}
