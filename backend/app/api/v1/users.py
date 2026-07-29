@@ -1,16 +1,18 @@
-"""Эндпоинты CRUD для пользователей и назначений."""
+"""Эндпоинты для управления пользователями и назначениями."""
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db, get_current_user, CurrentUser
 from app.core.security import get_password_hash
+from app.models.users import User, Role
+# ИСПРАВЛЕНО: UserPEAssignment находится в моделях планирования (согласно Отчету Этап 1)
+from app.models.planning import UserPEAssignment  
 from app.models.references import PE
-from app.models.users import Role, User
-from app.models.planning import UserPEAssignment  # <-- ИМПОРТИРУЕМ ИЗ ПРАВИЛЬНОГО МЕСТА
 from app.schemas.users import (
     UserCreate,
     UserUpdate,
@@ -21,174 +23,208 @@ from app.schemas.users import (
 
 router = APIRouter(prefix="/users", tags=["Пользователи"])
 
-# ================= Пользователи =================
-@router.get("/", response_model=list[UserResponse])
-def get_users(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    db: Annotated[Session, Depends(get_db)] = None,
+
+# ================= Схемы для ролей =================
+
+class UserRolesUpdate(BaseModel):
+    """Схема обновления ролей пользователя (принимает массив имён ролей)."""
+    roles: List[str]
+
+
+# ================= CRUD пользователей =================
+
+@router.get(
+    "/",
+    response_model=list[UserResponse],
+    summary="Список пользователей",
+)
+def list_users(
+    db: Annotated[Session, Depends(get_db)],
+    _: CurrentUser,
 ):
-    """Список пользователей с пагинацией."""
-    return (
-        db.query(User)
-        .options(joinedload(User.roles))
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    """Получение списка всех пользователей с их ролями."""
+    return db.query(User).options(joinedload(User.roles)).all()
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Создание пользователя",
+)
 def create_user(
     data: UserCreate,
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
 ):
-    """Создание нового пользователя с назначением ролей."""
-    # Проверка уникальности email
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь с таким email уже существует",
-        )
-
-    # Хеширование пароля
+    """Создание нового пользователя с ролями."""
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Пользователь с таким email уже существует")
+    
     hashed_password = get_password_hash(data.password)
-
-    # Создание пользователя
+    
     user = User(
         email=data.email,
         full_name=data.full_name,
         hashed_password=hashed_password,
-        is_active=True,
+        is_active=getattr(data, 'is_active', True),
     )
-
-    # Назначение ролей
-    if data.role_ids:
-        roles = db.query(Role).filter(Role.id.in_(data.role_ids)).all()
-        if len(roles) != len(data.role_ids):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Одна или несколько ролей не найдены",
-            )
-        user.roles = roles
-
     db.add(user)
+    db.flush()
+    
+    if hasattr(data, 'roles') and data.roles:
+        for role_name in data.roles:
+            role = db.query(Role).filter(Role.name == role_name).first()
+            if not role:
+                raise HTTPException(status_code=404, detail=f"Роль '{role_name}' не найдена")
+            user.roles.append(role)
+    
     db.commit()
     db.refresh(user)
     return user
 
 
-@router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
-    """Получение данных пользователя по ID."""
+@router.get(
+    "/{user_id}",
+    response_model=UserResponse,
+    summary="Детали пользователя",
+)
+def get_user(
+    user_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    _: CurrentUser,
+):
+    """Получение данных пользователя с ролями."""
     user = db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put(
+    "/{user_id}",
+    response_model=UserResponse,
+    summary="Обновление пользователя",
+)
 def update_user(
     user_id: uuid.UUID,
     data: UserUpdate,
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
 ):
-    """Обновление данных пользователя."""
-    user = db.query(User).filter(User.id == user_id).first()
+    """Обновление основных данных пользователя (без ролей)."""
+    user = db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-
-    # Проверка уникальности email (если меняется)
-    if data.email and data.email != user.email:
-        if db.query(User).filter(User.email == data.email).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Пользователь с таким email уже существует",
-            )
-        user.email = data.email
-
-    if data.full_name:
-        user.full_name = data.full_name
-
-    if data.password:
-        user.hashed_password = get_password_hash(data.password)
-
-    if data.is_active is not None:
-        user.is_active = data.is_active
-
+    
+    update_data = data.model_dump(exclude_unset=True)
+    
+    if 'password' in update_data and update_data['password']:
+        update_data['hashed_password'] = get_password_hash(update_data.pop('password'))
+    else:
+        update_data.pop('password', None)
+    
+    for field, value in update_data.items():
+        setattr(user, field, value)
+    
     db.commit()
     db.refresh(user)
     return user
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: uuid.UUID, db: Annotated[Session, Depends(get_db)], _: CurrentUser):
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удаление пользователя",
+)
+def delete_user(
+    user_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    _: CurrentUser,
+):
     """Удаление пользователя."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
+    
     db.delete(user)
     db.commit()
 
 
-@router.put("/{user_id}/roles", response_model=UserResponse)
-def assign_roles(
+# ================= Роли пользователя =================
+
+@router.put(
+    "/{user_id}/roles",
+    response_model=UserResponse,
+    summary="Обновление ролей пользователя",
+)
+def update_user_roles(
     user_id: uuid.UUID,
-    role_ids: list[uuid.UUID],
+    data: UserRolesUpdate,
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
 ):
-    """Назначение ролей пользователю (полная замена)."""
-    user = db.query(User).filter(User.id == user_id).first()
+    """
+    Обновление ролей пользователя.
+    Принимает массив имён ролей, например: ["admin", "manager"].
+    Полностью заменяет текущие роли.
+    """
+    user = db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-
-    roles = db.query(Role).filter(Role.id.in_(role_ids)).all()
-    if len(roles) != len(role_ids):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Одна или несколько ролей не найдены",
-        )
-
-    user.roles = roles
+    
+    # Очищаем текущие роли
+    user.roles = []
+    
+    # Добавляем новые роли по имени
+    for role_name in data.roles:
+        role = db.query(Role).filter(Role.name == role_name).first()
+        if not role:
+            raise HTTPException(status_code=404, detail=f"Роль '{role_name}' не найдена в справочнике")
+        user.roles.append(role)
+    
     db.commit()
     db.refresh(user)
     return user
 
 
-# ================= Назначения на ПЕ =================
-@router.get("/{user_id}/assignments", response_model=list[UserPEAssignmentResponse])
+# ================= Назначения инспекторов на ПЕ =================
+
+@router.get(
+    "/{user_id}/assignments",
+    response_model=list[UserPEAssignmentResponse],
+    summary="Назначения пользователя на ПЕ",
+)
 def get_user_assignments(
     user_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
+    _: CurrentUser,
 ):
-    """Получение назначений пользователя на ПЕ."""
+    """Получение всех назначений пользователя на производственные единицы."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-
+    
     assignments = (
         db.query(UserPEAssignment)
-        .filter(UserPEAssignment.user_id == user_id, UserPEAssignment.is_active == True)
+        .options(joinedload(UserPEAssignment.pe))
+        .filter(UserPEAssignment.user_id == user_id)
+        .order_by(UserPEAssignment.valid_from.desc())
         .all()
     )
-
+    
     result = []
-    for assignment in assignments:
-        pe = db.query(PE).filter(PE.id == assignment.pe_id).first()
-        result.append(
-            UserPEAssignmentResponse(
-                id=assignment.id,
-                user_id=assignment.user_id,
-                pe_id=assignment.pe_id,
-                pe_name=pe.name if pe else None,
-                valid_from=assignment.valid_from,
-                valid_to=assignment.valid_to,
-                is_active=assignment.is_active,
-            )
-        )
+    for a in assignments:
+        result.append(UserPEAssignmentResponse(
+            id=a.id,
+            user_id=a.user_id,
+            pe_id=a.pe_id,
+            pe_name=a.pe.name if a.pe else None,
+            valid_from=a.valid_from,
+            valid_to=a.valid_to,
+            is_active=a.is_active,
+        ))
     return result
 
 
@@ -196,6 +232,7 @@ def get_user_assignments(
     "/{user_id}/assignments",
     response_model=UserPEAssignmentResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Создание назначения",
 )
 def create_assignment(
     user_id: uuid.UUID,
@@ -203,35 +240,26 @@ def create_assignment(
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
 ):
-    """Создание назначения пользователя на ПЕ."""
-    # Проверка существования пользователя и ПЕ
+    """Создание нового назначения инспектора на ПЕ."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-
+    
     pe = db.query(PE).filter(PE.id == data.pe_id).first()
     if not pe:
-        raise HTTPException(status_code=400, detail="ПЕ не найдено")
-
-    # Проверка, что пользователь является инспектором (или имеет роль inspector)
-    inspector_role = db.query(Role).filter(Role.name == "inspector").first()
-    if inspector_role not in user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Назначать на ПЕ можно только пользователей с ролью инспектора",
-        )
-
+        raise HTTPException(status_code=404, detail="Производственная единица не найдена")
+    
     assignment = UserPEAssignment(
         user_id=user_id,
         pe_id=data.pe_id,
         valid_from=data.valid_from,
-        valid_to=data.valid_to,
+        valid_to=getattr(data, 'valid_to', None),
         is_active=True,
     )
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
-
+    
     return UserPEAssignmentResponse(
         id=assignment.id,
         user_id=assignment.user_id,
@@ -243,27 +271,39 @@ def create_assignment(
     )
 
 
-@router.post("/assignments/{assignment_id}/terminate", response_model=UserPEAssignmentResponse)
+@router.post(
+    "/assignments/{assignment_id}/terminate",
+    response_model=UserPEAssignmentResponse,
+    summary="Завершение назначения",
+)
 def terminate_assignment(
     assignment_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
 ):
-    """Завершение назначения (deactivate)."""
-    assignment = db.query(UserPEAssignment).filter(UserPEAssignment.id == assignment_id).first()
+    """Завершение активного назначения (устанавливает valid_to = сегодня)."""
+    assignment = (
+        db.query(UserPEAssignment)
+        .options(joinedload(UserPEAssignment.pe))
+        .filter(UserPEAssignment.id == assignment_id)
+        .first()
+    )
     if not assignment:
         raise HTTPException(status_code=404, detail="Назначение не найдено")
-
+    
+    if not assignment.is_active:
+        raise HTTPException(status_code=400, detail="Назначение уже завершено")
+    
+    assignment.valid_to = date.today()
     assignment.is_active = False
     db.commit()
     db.refresh(assignment)
-
-    pe = db.query(PE).filter(PE.id == assignment.pe_id).first()
+    
     return UserPEAssignmentResponse(
         id=assignment.id,
         user_id=assignment.user_id,
         pe_id=assignment.pe_id,
-        pe_name=pe.name if pe else None,
+        pe_name=assignment.pe.name if assignment.pe else None,
         valid_from=assignment.valid_from,
         valid_to=assignment.valid_to,
         is_active=assignment.is_active,
