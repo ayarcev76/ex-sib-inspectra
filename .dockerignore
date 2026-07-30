@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Документация и отчёты
+docs/
+*.docx
+*.md
+README.md
+
+# Виртуальные окружения
+.venv-1/
+.venv/
+backend/.venv/
+
+# Node modules (локальные)
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.mypy_cache
+.pytest_cache
+backend/exsib_backend.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env (секреты не попадают в образ)
+.env
+backend/.env
+frontend/.env.local

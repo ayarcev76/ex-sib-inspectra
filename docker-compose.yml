@@ -6,16 +6,16 @@ services:
     container_name: exsib-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-exsib}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-exsib_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-exsib}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_USER: exsib
+      POSTGRES_PASSWORD: exsib_strong_password_123
+      POSTGRES_DB: exsib
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-exsib}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U exsib"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
@@ -23,15 +23,14 @@ services:
     image: redis:7-alpine
     container_name: exsib-redis
     restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   minio:
@@ -39,34 +38,83 @@ services:
     container_name: exsib-minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin_password_123}
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin_password_123
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
 
   minio-init:
     image: minio/mc:latest
+    container_name: exsib-minio-init
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc alias set local http://minio:9000 minioadmin minioadmin_password_123;
       mc mb --ignore-existing local/inspections;
-      mc anonymous set download local/inspections/thumbnails;
       exit 0;
       "
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exsib-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # ⚠️ ЭТИ ПЕРЕМЕННЫЕ ПЕРЕОПРЕДЕЛЯЮТ .ENV ВНУТРИ КОНТЕЙНЕРА
+      - DB_HOST=postgres
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
+    volumes:
+      - ./backend:/app
+      - backend_pycache:/app/__pycache__
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: exsib-frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  backend_pycache:
+  frontend_node_modules:

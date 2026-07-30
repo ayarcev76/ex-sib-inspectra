@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Layout, Menu, Button, Avatar, Dropdown, Space, theme, 
-  Breadcrumb, Badge, ConfigProvider 
+import {
+  Layout, Menu, Button, Avatar, Dropdown, Space, theme,
+  Breadcrumb, Badge, ConfigProvider
 } from 'antd';
 import {
   DashboardOutlined,
@@ -76,8 +76,11 @@ const AppLayout: React.FC = () => {
   // Генерация breadcrumbs на основе текущего пути
   const getBreadcrumbs = () => {
     const pathSegments = location.pathname.split('/').filter(Boolean);
-    const breadcrumbs = [{ title: <Link to="/">Главная</Link> }];
+    const breadcrumbs: { title: React.ReactNode }[] = [
+      { title: <Link to="/">Главная</Link> }
+    ];
 
+    // Маппинг сегментов URL на русские названия
     const nameMap: Record<string, string> = {
       inspections: 'Карты наблюдений',
       references: 'Справочники',
@@ -87,21 +90,26 @@ const AppLayout: React.FC = () => {
       new: 'Создание',
       edit: 'Редактирование',
       profile: 'Профиль',
+      detail: 'Детали',
     };
 
-    pathSegments.forEach((segment, index) => {
-      const isLast = index === pathSegments.length - 1;
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment);
+    // UUID-регулярка — пропускаем такие сегменты, чтобы не показывать #d65f6c1a
+    const isUUID = (s: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
-      if (isUUID) {
-        breadcrumbs.push({ title: `#${segment.substring(0, 8)}` });
-      } else {
-        const name = nameMap[segment] || segment;
-        const path = '/' + pathSegments.slice(0, index + 1).join('/');
-        breadcrumbs.push({
-          title: isLast ? name : <Link to={path}>{name}</Link>,
-        });
+    pathSegments.forEach((segment, index) => {
+      // Пропускаем UUID — номер проверки покажет сама страница
+      if (isUUID(segment)) {
+        return;
       }
+
+      const isLast = index === pathSegments.length - 1;
+      const name = nameMap[segment] || segment;
+      const path = '/' + pathSegments.slice(0, index + 1).join('/');
+
+      breadcrumbs.push({
+        title: isLast ? name : <Link to={path}>{name}</Link>,
+      });
     });
 
     return breadcrumbs;
@@ -123,6 +131,7 @@ const AppLayout: React.FC = () => {
         label: 'Справочники' 
       });
     }
+
     if (canManageUsers()) {
       adminItems.push({ 
         key: '/users', 
@@ -130,6 +139,7 @@ const AppLayout: React.FC = () => {
         label: 'Пользователи' 
       });
     }
+
     if (canManageAssignments()) {
       adminItems.push({ 
         key: '/assignments', 
@@ -241,17 +251,17 @@ const AppLayout: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               borderBottom: '1px solid rgba(255,255,255,0.1)',
-              padding: collapsed ? '0 8px' : '0 16px',
+              padding: collapsed ? '0 8px' : '0 16px', 
               overflow: 'hidden',
             }}
           >
             <SafetyCertificateOutlined style={{ fontSize: 26, color: '#00A651', flexShrink: 0 }} />
             {!collapsed && (
-              <div 
-                style={{ 
-                  marginLeft: 10, 
-                  color: '#fff', 
-                  fontSize: 15, 
+              <div
+                style={{
+                  marginLeft: 10,
+                  color: '#fff',
+                  fontSize: 15,
                   fontWeight: 600,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',

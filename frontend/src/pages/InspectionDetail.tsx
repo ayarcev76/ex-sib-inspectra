@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Card, Row, Col, Descriptions, Tag, Spin, Alert, Button, Space,
-  Divider, message, Popconfirm, Image, Empty, Statistic
+  Divider, message, Popconfirm, Image, Empty, Statistic, Breadcrumb
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -16,8 +16,9 @@ import {
   PictureOutlined,
   FireOutlined,
   SafetyCertificateOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import apiClient from '../api/client';
 
 interface ViolationPhoto {
@@ -158,7 +159,6 @@ const InspectionDetail: React.FC = () => {
   const hasViolations = violationsList.length > 0;
   const topViolationsCount = violationsList.filter(v => v.is_top_violation).length;
   const hasWorkStopped = violationsList.some(v => v.is_work_stopped);
-
   const zpbRulesViolated = Array.from(new Set(
     violationsList
       .filter(v => v.zpb_rule_name)
@@ -175,7 +175,7 @@ const InspectionDetail: React.FC = () => {
   }
 
   if (error || !inspection) {
-    return <Alert message="Ошибка" description={error || 'Карта наблюдения не найдена'} type="error" showIcon />;
+    return <Alert title="Ошибка" description={error || 'Карта наблюдения не найдена'} type="error" showIcon />;
   }
 
   const statusColors: Record<string, string> = {
@@ -183,6 +183,7 @@ const InspectionDetail: React.FC = () => {
     submitted: 'green',
     approved: 'blue',
   };
+
   const statusTexts: Record<string, string> = {
     draft: 'Черновик',
     submitted: 'Завершена',
@@ -191,6 +192,19 @@ const InspectionDetail: React.FC = () => {
 
   return (
     <div>
+      {/* ✅ Осмысленные breadcrumbs с реальным номером проверки */}
+      <Breadcrumb style={{ marginBottom: 16 }}>
+        <Breadcrumb.Item>
+          <Link to="/"><HomeOutlined /> Главная</Link>
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>
+          <Link to="/inspections">Карты наблюдений</Link>
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>
+          {inspection.inspection_number}
+        </Breadcrumb.Item>
+      </Breadcrumb>
+
       {/* Кнопка назад и действия */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/inspections')}>
@@ -309,7 +323,7 @@ const InspectionDetail: React.FC = () => {
                 <Statistic
                   title={<span style={{ fontSize: 14, color: '#666' }}>Выявлено нарушений</span>}
                   value={violationsList.length}
-                  valueStyle={{ color: '#cf1322', fontSize: 32 }}
+                  styles={{ content: { color: '#cf1322', fontSize: 32 } }}
                   prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
                   suffix={violationsList.length === 1 ? 'нарушение' :
                          violationsList.length < 5 ? 'нарушения' : 'нарушений'}
@@ -327,10 +341,12 @@ const InspectionDetail: React.FC = () => {
                 <Statistic
                   title={<span style={{ fontSize: 14, color: '#666' }}>ТОП-нарушений</span>}
                   value={topViolationsCount}
-                  valueStyle={{
-                    color: topViolationsCount > 0 ? '#cf1322' : '#999',
-                    fontSize: 32,
-                    fontWeight: 'bold',
+                  styles={{ 
+                    content: {
+                      color: topViolationsCount > 0 ? '#cf1322' : '#999',
+                      fontSize: 32,
+                      fontWeight: 'bold',
+                    } 
                   }}
                   prefix={<FireOutlined style={{ color: topViolationsCount > 0 ? '#cf1322' : '#d9d9d9' }} />}
                 />
@@ -348,7 +364,7 @@ const InspectionDetail: React.FC = () => {
                 border: '2px solid #ff4d4f',
                 background: '#fff1f0',
               }}
-              message={
+              title={
                 <span style={{ fontSize: 16, fontWeight: 'bold', color: '#cf1322' }}>
                   ⛔ РАБОТЫ ОСТАНОВЛЕНЫ
                 </span>
@@ -367,7 +383,7 @@ const InspectionDetail: React.FC = () => {
                 border: '2px solid #faad14',
                 background: '#fffbe6',
               }}
-              message={
+              title={
                 <span style={{ fontSize: 16, fontWeight: 'bold', color: '#ad6800' }}>
                   ⚠️ НАРУШЕНЫ ЗОЛОТЫЕ ПРАВИЛА БЕЗОПАСНОСТИ
                 </span>
@@ -457,7 +473,7 @@ const InspectionDetail: React.FC = () => {
                           const thumbnailUrl = urls?.thumbnail || '';
                           const originalUrl = urls?.original || '';
                           return (
-                            <Col key={photo.id} span={6}>
+                            <Col key={photo.id} xs={24} sm={12} md={8} lg={6}>
                               <Card
                                 size="small"
                                 hoverable

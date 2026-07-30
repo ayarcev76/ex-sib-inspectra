@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Select, Input, DatePicker, Button, Card, message, Divider, Spin, Alert } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Form, Select, Input, DatePicker, Button, Card, message, Divider, Spin, Alert, Breadcrumb } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, HomeOutlined } from '@ant-design/icons';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import apiClient from '../api/client';
 import ViolationRows from '../components/ViolationRows';
@@ -111,6 +111,7 @@ const InspectionEdit: React.FC = () => {
         department_id: values.department_id,
         work_location: values.work_location?.trim() || 'Не указано',
       };
+
       if (values.contractor_id) {
         updateData.contractor_id = values.contractor_id;
       }
@@ -131,7 +132,7 @@ const InspectionEdit: React.FC = () => {
   }
 
   if (!inspectionData) {
-    return <Alert message="Ошибка" description="Проверка не найдена" type="error" showIcon />;
+    return <Alert title="Ошибка" description="Проверка не найдена" type="error" showIcon />;
   }
 
   if (inspectionData.status !== 'draft') {
@@ -141,7 +142,7 @@ const InspectionEdit: React.FC = () => {
           Назад к проверке
         </Button>
         <Alert
-          message="Редактирование недоступно"
+          title="Редактирование недоступно"
           description={`Проверка имеет статус "${inspectionData.status === 'submitted' ? 'Завершена' : 'Утверждена'}".`}
           type="warning"
           showIcon
@@ -152,24 +153,75 @@ const InspectionEdit: React.FC = () => {
 
   return (
     <div>
+      {/* ✅ Осмысленные breadcrumbs с реальным номером проверки */}
+      <Breadcrumb style={{ marginBottom: 16 }}>
+        <Breadcrumb.Item>
+          <Link to="/"><HomeOutlined /> Главная</Link>
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>
+          <Link to="/inspections">Карты наблюдений</Link>
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>
+          <Link to={`/inspections/${id}`}>{inspectionData.inspection_number}</Link>
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>
+          Редактирование
+        </Breadcrumb.Item>
+      </Breadcrumb>
+
       <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/inspections/${id}`)} style={{ marginBottom: 16 }}>
         Назад к проверке
       </Button>
+
       <Card title={`Редактирование проверки ${inspectionData.inspection_number}`}>
         <Form form={form} layout="vertical" onFinish={onFinish}>
-          <Form.Item name="date" label="Дата проведения" rules={[{ required: true, message: 'Выберите дату' }]}>
+          <Form.Item
+            name="date"
+            label="Дата проведения"
+            rules={[{ required: true, message: 'Выберите дату' }]}
+          >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="pe_id" label="Производственная единица" rules={[{ required: true, message: 'Выберите ПЕ' }]}>
-            <Select placeholder="Выберите ПЕ" onChange={handlePEChange} options={pes.map((pe) => ({ value: pe.id, label: pe.name }))} />
+
+          <Form.Item
+            name="pe_id"
+            label="Производственная единица"
+            rules={[{ required: true, message: 'Выберите ПЕ' }]}
+          >
+            <Select
+              placeholder="Выберите ПЕ"
+              onChange={handlePEChange}
+              options={pes.map((pe) => ({ value: pe.id, label: pe.name }))}
+            />
           </Form.Item>
-          <Form.Item name="department_id" label="Подразделение" rules={[{ required: true, message: 'Выберите подразделение' }]}>
-            <Select placeholder="Выберите подразделение" options={departments.map((dept) => ({ value: dept.id, label: dept.name }))} />
+
+          <Form.Item
+            name="department_id"
+            label="Подразделение"
+            rules={[{ required: true, message: 'Выберите подразделение' }]}
+          >
+            <Select
+              placeholder="Выберите подразделение"
+              options={departments.map((dept) => ({ value: dept.id, label: dept.name }))}
+            />
           </Form.Item>
-          <Form.Item name="contractor_id" label="Подрядная организация">
-            <Select placeholder="Выберите подрядчика (опционально)" allowClear options={contractors.map((c) => ({ value: c.id, label: c.name }))} />
+
+          <Form.Item
+            name="contractor_id"
+            label="Подрядная организация"
+          >
+            <Select
+              placeholder="Выберите подрядчика (опционально)"
+              allowClear
+              options={contractors.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </Form.Item>
-          <Form.Item name="work_location" label="Место производства работ" rules={[{ required: true, message: 'Укажите место работ' }]}>
+
+          <Form.Item
+            name="work_location"
+            label="Место производства работ"
+            rules={[{ required: true, message: 'Укажите место работ' }]}
+          >
             <Input placeholder="Например: Цех №1, участок 5, эстакада" />
           </Form.Item>
 

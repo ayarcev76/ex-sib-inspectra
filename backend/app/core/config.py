@@ -2,10 +2,9 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     """Настройки приложения (читаются из backend/.env)."""
-
+    
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",
         env_file_encoding="utf-8",
@@ -26,18 +25,20 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "exsib_strong_password_123"
     POSTGRES_DB: str = "exsib"
     POSTGRES_PORT: int = 5432
-    DB_HOST: str = "localhost"
+    DB_HOST: str = "localhost"  # В Docker переопределяется на "postgres"
 
     # --- Redis ---
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
 
     # --- MinIO ---
-    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ENDPOINT: str = "http://localhost:9000"          # <-- Добавлен http://
+    MINIO_PUBLIC_ENDPOINT: str = "http://localhost:9000"   # <-- ДОБАВЛЕНО
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin_password_123"
     MINIO_BUCKET: str = "inspections"
     MINIO_USE_SSL: bool = False
+    MINIO_REGION: str = "us-east-1"                        # <-- ДОБАВЛЕНО
 
     # --- CORS ---
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
@@ -56,6 +57,5 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         """Возвращает список разрешенных CORS-оригинов."""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
-
 
 settings = Settings()
