@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Select, Table, Tag, Button, Space, message, Spin } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { 
   WarningOutlined, 
   StopOutlined,
@@ -116,7 +117,8 @@ const Dashboard: React.FC = () => {
       try {
         const response = await apiClient.get('/references/pe');
         setPes(response.data);
-      } catch (error) {
+      } catch (err) {
+        console.error('Ошибка загрузки ПЕ:', err);
         message.error('Ошибка загрузки списка ПЕ');
       }
     };
@@ -169,7 +171,7 @@ const Dashboard: React.FC = () => {
     message.info(`Экспорт в формате ${format.toUpperCase()} находится в разработке`);
   };
 
-  const columns = [
+  const columns: ColumnsType<RecentInspectionItem> = [
     { title: 'Дата', dataIndex: 'date', key: 'date' },
     { title: 'ПЕ', dataIndex: 'pe_name', key: 'pe_name' },
     { title: 'Подразделение', dataIndex: 'department_name', key: 'department_name' },
@@ -194,7 +196,7 @@ const Dashboard: React.FC = () => {
     },
   ];
 
-  const topViolationsColumns = [
+  const topViolationsColumns: ColumnsType<TopViolationItem> = [
     { title: 'Дата', dataIndex: 'date', key: 'date' },
     { title: 'ПЕ', dataIndex: 'pe_name', key: 'pe_name' },
     { title: 'Подразделение', dataIndex: 'department_name', key: 'department_name' },
@@ -400,7 +402,7 @@ const Dashboard: React.FC = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
