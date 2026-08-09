@@ -1,19 +1,54 @@
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-node_modules/
-dist/
-build/
-mobile/.dart_tool/
-mobile/build/
+```
+# Dependencies
+backend/requirements-dev.txt
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
 .env
 .env.local
-backend/.env
-frontend/.env.local
-**/firebase-service-account.json
-**/service-account.json
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
-.DS_Store
-Thumbs.db
-.env.docker
+.git/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+sdist/
+develop-eggs/
+```

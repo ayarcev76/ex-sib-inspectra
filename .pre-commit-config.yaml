@@ -1,0 +1,46 @@
+# Pre-commit configuration
+# See https://pre-commit.com for more information
+
+repos:
+  # Backend hooks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^backend/.*\.py$
+      - id: ruff-format
+        files: ^backend/.*\.py$
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1
+    hooks:
+      - id: mypy
+        files: ^backend/app/.*\.py$
+        additional_dependencies:
+          - pydantic>=2.0
+          - sqlalchemy>=2.0
+          - fastapi>=0.100
+
+  # Frontend hooks
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: Frontend Lint & Type Check
+        entry: npm run lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+        require_serial: true
+
+  # Common hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
