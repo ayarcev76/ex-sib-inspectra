@@ -4,6 +4,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../core/constants.dart';
 import 'token_storage.dart';
+import 'auth_event_bus.dart';
 
 /// HTTP-клиент приложения на базе Dio.
 /// Автоматически добавляет JWT-токен в заголовки всех запросов
@@ -11,6 +12,7 @@ import 'token_storage.dart';
 class ApiClient {
   late final Dio _dio;
   final TokenStorage _tokenStorage;
+  final AuthEventBus _authEventBus = AuthEventBus();
 
   // Флаг для предотвращения race condition при одновременном обновлении токена
   bool _isRefreshing = false;
@@ -75,9 +77,17 @@ class ApiClient {
                 final response = await _dio.fetch(opts);
                 return handler.resolve(response);
               } else {
-                // Refresh не удался — токены истекли, нужно перелогиниться
+                // 🔥 Refresh не удался — очищаем токены
+                // и отправляем событие для автоматического logout
                 print('❌ [ApiClient] Refresh token истёк или невалиден');
                 await _tokenStorage.clearTokens();
+
+                // ✅ Отправляем событие для UI
+                _authEventBus.emit(AuthEvent(
+                  AuthEventType.tokenExpired,
+                  'Сессия истекла. Пожалуйста, войдите снова.',
+                ));
+
                 return handler.next(error);
               }
             } catch (e) {
@@ -108,6 +118,9 @@ class ApiClient {
 
   /// Получить внутренний Dio-клиент (для специфичных запросов)
   Dio get dio => _dio;
+
+  /// Получить шину событий авторизации (для подписки в main.dart)
+  AuthEventBus get authEventBus => _authEventBus;
 
   // ==========================================
   // БАЗОВЫЕ HTTP-МЕТОДЫ
@@ -272,6 +285,9 @@ class ApiClient {
 
   /// Обновить access token через refresh token.
   /// Возвращает true при успехе, false при неудаче.
+  ///
+  /// 🔥 ИСПРАВЛЕНО: refresh_token теперь отправляется как FormData,
+  /// а не как JSON body. Backend ожидает form-data или query параметр.
   Future<bool> _refreshToken() async {
     // Если уже идёт обновление — добавляем в очередь и ждём
     if (_isRefreshing) {
@@ -293,20 +309,22 @@ class ApiClient {
       print('🔄 [ApiClient] Обновление access token...');
 
       // Создаём отдельный Dio-клиент для запроса refresh,
-      // чтобы не触发 интерсепторы основного клиента
+      // чтобы не вызывать интерсепторы основного клиента
       final refreshDio = Dio(BaseOptions(
         baseUrl: AppConstants.baseUrl,
         connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
         receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
       ));
+
+      // ✅ ИСПРАВЛЕНО: используем FormData вместо JSON body
+      // Backend ожидает refresh_token как form-data параметр
+      final formData = FormData.fromMap({
+        'refresh_token': refreshToken,
+      });
 
       final response = await refreshDio.post(
         '/api/v1/auth/refresh',
-        data: {'refresh_token': refreshToken},
+        data: formData,
       );
 
       if (response.statusCode == 200) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +11,7 @@ import 'services/database_helper.dart';
 import 'services/reference_service.dart';
 import 'services/inspection_service.dart';
 import 'services/sync_manager.dart';
+import 'services/auth_event_bus.dart';
 
 // Провайдеры
 import 'providers/auth_provider.dart';
@@ -69,8 +71,7 @@ void main() async {
   _referenceProvider = ReferenceProvider(_referenceService);
   _inspectionProvider = InspectionProvider(_inspectionService);
 
-  // 🔥 ИСПРАВЛЕНО: SyncManager теперь принимает ЧЕТЫРЕ параметра
-  // (добавлены DatabaseHelper и ApiClient для загрузки фото нарушений)
+  // SyncManager с четырьмя параметрами
   _syncManager = SyncManager(
     _inspectionService,
     _authService,
@@ -96,8 +97,127 @@ void main() async {
   runApp(const InspectraApp());
 }
 
-class InspectraApp extends StatelessWidget {
+/// ✅ ИСПРАВЛЕНО: InspectraApp теперь StatefulWidget для подписки на AuthEventBus
+class InspectraApp extends StatefulWidget {
   const InspectraApp({super.key});
+
+  @override
+  State<InspectraApp> createState() => _InspectraAppState();
+}
+
+class _InspectraAppState extends State<InspectraApp> {
+  /// ✅ Ключ для доступа к Navigator из любого места (нужен для обработки событий авторизации)
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// ✅ Подписка на события авторизации (для автоматического logout при истечении токена)
+  StreamSubscription<AuthEvent>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Подписываемся на события авторизации из ApiClient
+    _authSubscription = _apiClient.authEventBus.stream.listen((event) {
+      _handleAuthEvent(event);
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// ✅ Обработка событий авторизации
+  void _handleAuthEvent(AuthEvent event) {
+    switch (event.type) {
+      case AuthEventType.tokenExpired:
+      case AuthEventType.tokensCleared:
+        _showSessionExpiredDialog(event.message);
+        break;
+      case AuthEventType.loggedOut:
+        _navigateToLogin();
+        break;
+    }
+  }
+
+  /// ✅ Показ диалога об истечении сессии
+  void _showSessionExpiredDialog(String? message) {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EurochemColors.primaryBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: EurochemColors.yellow,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Сессия истекла',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message ?? 'Пожалуйста, войдите снова для продолжения работы.',
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 16,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _navigateToLogin();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: EurochemColors.green,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Войти снова',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ Переход на экран входа с очисткой стека навигации
+  void _navigateToLogin() {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/login',
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +228,8 @@ class InspectraApp extends StatelessWidget {
         ChangeNotifierProvider<InspectionProvider>.value(value: _inspectionProvider),
       ],
       child: MaterialApp(
+        /// ✅ Передаём navigatorKey для доступа к Navigator из AuthEventBus
+        navigatorKey: _navigatorKey,
         title: 'ЕХ:Инспектра-ИПБ',
         debugShowCheckedModeBanner: false,
 
@@ -190,12 +312,16 @@ class InspectraApp extends StatelessWidget {
             if (!_authProvider.isInitialized) {
               return const _SplashScreen();
             }
-            if (_authProvider.isAuthenticated) {
-              return const HomeScreen();
-            }
+            // ✅ ИСПРАВЛЕНО: Сначала проверяем биометрию!
+            // Если пользователь включил биометрию - всегда требуем подтверждение
             if (_authProvider.isBiometricEnabled && _authProvider.isBiometricAvailable) {
               return const _BiometricLoginScreen();
             }
+            // Если токены есть (но биометрия не включена) - автоматический вход
+            if (_authProvider.isAuthenticated) {
+              return const HomeScreen();
+            }
+            // Иначе - экран обычного входа
             return const LoginScreen();
           },
           '/login': (context) => const LoginScreen(),
@@ -300,13 +426,10 @@ class _BiometricLoginScreenState extends State<_BiometricLoginScreen> {
     });
 
     if (success) {
-      // 🔥 ИСПРАВЛЕНО: Получаем currentUserId из authProvider
       final currentUserId = authProvider.currentUser?['id'] as String?;
 
-      // Синхронизируем справочники (если нужно)
       await context.read<ReferenceProvider>().syncReferencesIfNeeded();
 
-      // 🔥 ИСПРАВЛЕНО: Передаём currentUserId в syncAllPending
       if (currentUserId != null) {
         await context.read<InspectionProvider>().syncAllPending(currentUserId);
       } else {
