@@ -27,6 +27,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
+from slowapi.errors import RateLimitExceeded
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
+
 # Загружаем переменные окружения из .env файла
 load_dotenv()
 
@@ -54,6 +57,10 @@ app = FastAPI(
     version="0.5.0",
     lifespan=lifespan,
 )
+
+# Подключаем rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Настройка CORS (для доступа с фронтенда)
 app.add_middleware(

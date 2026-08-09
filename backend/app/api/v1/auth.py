@@ -18,11 +18,15 @@ from app.core.security import (
 from app.models.users import User
 from app.schemas.users import Token, UserResponse
 
+from fastapi import Request
+from app.core.rate_limit import limiter
+
 router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 
 
 @router.post("/login", response_model=Token, summary="Вход в систему и получение токенов")
 def login(
+    request: Request,  
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[Session, Depends(get_db)]
 ):
@@ -79,7 +83,7 @@ def login(
 
 
 @router.post("/refresh", response_model=Token, summary="Обновление access токена")
-def refresh_token_endpoint(refresh_token: str, db: Annotated[Session, Depends(get_db)]):
+def refresh_token_endpoint(request: Request,  refresh_token: str, db: Annotated[Session, Depends(get_db)]):
     """
     Принимает валидный refresh_token и возвращает новую пару токенов.
     Роли также включаются в новый access_token.
