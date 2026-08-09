@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ЕХ:Инспектра-ИПБ API",
     description="Система инспекций производственной безопасности ГК «ЕВРОХИМ»",
-    version="0.5.0",
+    version="0.7.0",
     lifespan=lifespan,
 )
 
