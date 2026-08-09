@@ -20,19 +20,8 @@ from app.schemas.users import (
     UserPEAssignmentCreate,
     UserPEAssignmentResponse,
 )
-from app.repositories.users import UserRepository, RoleRepository
 
 router = APIRouter(prefix="/users", tags=["Пользователи"])
-
-
-def get_user_repo(db: Session) -> UserRepository:
-    """Фабрика для создания репозитория пользователей."""
-    return UserRepository(db)
-
-
-def get_role_repo(db: Session) -> RoleRepository:
-    """Фабрика для создания репозитория ролей."""
-    return RoleRepository(db)
 
 
 # ================= Схемы для ролей =================
@@ -52,10 +41,10 @@ class UserRolesUpdate(BaseModel):
 def list_users(
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
-    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
 ):
     """Получение списка всех пользователей с их ролями."""
-    return user_repo.get_all(skip=0, limit=1000)
+    users = db.query(User).options(joinedload(User.roles)).all()
+    return users
 
 
 @router.post(
@@ -68,11 +57,9 @@ def create_user(
     data: UserCreate,
     db: Annotated[Session, Depends(get_db)],
     _: CurrentUser,
-    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
-    role_repo: Annotated[RoleRepository, Depends(get_role_repo)],
 ):
     """Создание нового пользователя с ролями."""
-    existing = user_repo.get_by_email(data.email)
+    existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Пользователь с таким email уже существует")
     
@@ -84,18 +71,22 @@ def create_user(
         "hashed_password": hashed_password,
         "is_active": getattr(data, 'is_active', True),
     }
-    user = user_repo.create(user_data)
+    user = User(**user_data)
+    db.add(user)
+    db.flush()
     
     if hasattr(data, 'roles') and data.roles:
         for role_name in data.roles:
-            role = role_repo.get_by_name(role_name)
+            role = db.query(Role).filter(Role.name == role_name).first()
             if not role:
                 # Откатываем создание пользователя при ошибке
-                user_repo.delete(user.id)
+                db.delete(user)
+                db.flush()
                 raise HTTPException(status_code=404, detail=f"Роль '{role_name}' не найдена")
-            user_repo.add_role(user.id, role.id)
+            user.roles.append(role)
     
     db.commit()
+    db.refresh(user)
     return user
 
 

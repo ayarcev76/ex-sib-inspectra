@@ -8,7 +8,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.inspections import Inspection, InspectionStage, InspectionAttachment
+from app.models.inspections import Inspection
 
 
 class BaseRepository:
@@ -131,82 +131,44 @@ class InspectionRepository(BaseRepository):
 
 
 class InspectionStageRepository(BaseRepository):
-    """Репозиторий для работы со стадиями инспекций."""
+    """Репозиторий для работы со стадиями инспекций (заглушка)."""
 
-    async def get_by_id(self, stage_id: UUID) -> Optional[InspectionStage]:
+    async def get_by_id(self, stage_id: UUID) -> Optional[object]:
         """Получить стадию по ID."""
-        return await self.session.get(InspectionStage, stage_id)
+        raise NotImplementedError("InspectionStage модель не существует")
 
-    async def get_by_inspection(self, inspection_id: UUID) -> List[InspectionStage]:
+    async def get_by_inspection(self, inspection_id: UUID) -> List[object]:
         """Получить все стадии инспекции."""
-        result = await self.session.execute(
-            select(InspectionStage)
-            .where(InspectionStage.inspection_id == inspection_id)
-            .order_by(InspectionStage.stage_order)
-        )
-        return list(result.scalars().all())
+        raise NotImplementedError("InspectionStage модель не существует")
 
-    async def create(self, stage_data: dict) -> InspectionStage:
+    async def create(self, stage_data: dict) -> object:
         """Создать новую стадию."""
-        stage = InspectionStage(**stage_data)
-        self.session.add(stage)
-        await self.session.flush()
-        await self.session.refresh(stage)
-        return stage
+        raise NotImplementedError("InspectionStage модель не существует")
 
-    async def update(self, stage_id: UUID, update_data: dict) -> Optional[InspectionStage]:
+    async def update(self, stage_id: UUID, update_data: dict) -> Optional[object]:
         """Обновить стадию."""
-        stage = await self.get_by_id(stage_id)
-        if not stage:
-            return None
-        
-        for field, value in update_data.items():
-            setattr(stage, field, value)
-        
-        await self.session.flush()
-        await self.session.refresh(stage)
-        return stage
+        raise NotImplementedError("InspectionStage модель не существует")
 
     async def delete(self, stage_id: UUID) -> bool:
         """Удалить стадию."""
-        stage = await self.get_by_id(stage_id)
-        if not stage:
-            return False
-        
-        await self.session.delete(stage)
-        await self.session.flush()
-        return True
+        raise NotImplementedError("InspectionStage модель не существует")
 
 
 class InspectionAttachmentRepository(BaseRepository):
-    """Репозиторий для работы с вложениями инспекций."""
+    """Репозиторий для работы с вложениями инспекций (заглушка)."""
 
-    async def get_by_id(self, attachment_id: UUID) -> Optional[InspectionAttachment]:
+    async def get_by_id(self, attachment_id: UUID) -> Optional[object]:
         """Получить вложение по ID."""
-        return await self.session.get(InspectionAttachment, attachment_id)
+        raise NotImplementedError("InspectionAttachment модель не существует")
 
-    async def get_by_inspection(self, inspection_id: UUID) -> List[InspectionAttachment]:
+    async def get_by_inspection(self, inspection_id: UUID) -> List[object]:
         """Получить все вложения инспекции."""
-        result = await self.session.execute(
-            select(InspectionAttachment)
-            .where(InspectionAttachment.inspection_id == inspection_id)
-        )
-        return list(result.scalars().all())
+        raise NotImplementedError("InspectionAttachment модель не существует")
 
-    async def create(self, attachment_data: dict) -> InspectionAttachment:
+    async def create(self, attachment_data: dict) -> object:
         """Создать новое вложение."""
-        attachment = InspectionAttachment(**attachment_data)
-        self.session.add(attachment)
-        await self.session.flush()
-        await self.session.refresh(attachment)
-        return attachment
+        raise NotImplementedError("InspectionAttachment модель не существует")
 
     async def delete(self, attachment_id: UUID) -> bool:
         """Удалить вложение."""
-        attachment = await self.get_by_id(attachment_id)
-        if not attachment:
-            return False
-        
-        await self.session.delete(attachment)
-        await self.session.flush()
-        return True
+        raise NotImplementedError("InspectionAttachment модель не существует")
