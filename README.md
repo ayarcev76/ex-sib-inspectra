@@ -1,146 +1,195 @@
-# ЕХ:Инспектра-СИПБ
+# 🛡️ ЕХ:Инспектра-ИПБ
 
-> **Система инспекций производственной безопасности**
-> Серверная часть + веб-интерфейс + мобильное приложение Inspectra
+**Система инспекций производственной безопасности для ГК «ЕВРОХИМ»**
 
-**Версия ТЗ:** 3.4 | **Дата:** 25.07.2026 | **Заказчик:** ГК «ЕВРОХИМ»
+Система автоматизации процесса проведения инспекций производственной безопасности на производственных объектах группы компаний «ЕВРОХИМ». Инспекторы и уполномоченные пользователи заполняют карты наблюдений через мобильное приложение **Inspectra** (на производственных объектах, в том числе без интернета) и через веб-интерфейс **ЕХ:Инспектра-ИПБ** (в офисах, при работе с архивными данными и массовом внесении).
 
----
-
-## 📋 О проекте
-
-**ЕХ:Инспектра-СИПБ** — корпоративная система автоматизации инспекций производственной безопасности для группы компаний «ЕВРОХИМ».
-
-Состоит из трёх компонентов:
-- 📱 **Inspectra** (mobile/) — мобильное приложение для инспекторов на производственных объектах
-- 🌐 **ЕХ:Инспектра-СИПБ** (frontend/) — веб-интерфейс для координаторов, руководителей, администраторов
-- ⚙️ **Backend** (backend/) — единый REST API для обоих клиентов
-
-### Ключевые возможности
-
-- Автоматизация карт наблюдений с фотофиксацией (MinIO/S3)
-- Автоматический расчёт «Топ-нарушений» по Золотым Правилам Безопасности
-- Централизованное планирование инспекций (автогенерация + утверждение)
-- Дашборд с drill-down (3 уровня) и экспортом в PDF
-- Трёхканальные уведомления: Email + Push (FCM) + Внутренняя лента
-- Ролевая модель с множественными ролями (6 ролей)
-- Иерархия: ПЕ → Подразделение → Место работ
-- Полный оффлайн-режим в мобильном приложении
-- Сканирование QR-кодов объектов
+> **Версия ТЗ:** 3.5 · **Заказчик:** ГК «ЕВРОХИМ» · **Дата:** 25 июля 2026 г.
 
 ---
 
-## 🏗 Архитектура
+## 📖 О проекте
 
-```
-┌─────────────────────────────────────────────────────┐
-│              ЕХ:Инспектра-СИПБ                      │
-├─────────────────────────────────────────────────────┤
-│  mobile/ (Flutter)      frontend/ (React+TS+AntD)   │
-│       │                          │                  │
-│       └──────────┬───────────────┘                  │
-│                  ▼                                  │
-│            backend/ (FastAPI)                       │
-│                  │                                  │
-│   ┌──────────────┼──────────────┬──────────┐        │
-│   ▼              ▼              ▼          ▼        │
-│ PostgreSQL     Redis         MinIO     Celery       │
-└─────────────────────────────────────────────────────┘
-```
+Система **ЕХ:Инспектра-ИПБ** предназначена для цифровизации процесса инспекций производственной безопасности. Ключевые задачи:
+
+- 📋 Оперативная фиксация нарушений с фотофиксацией
+- 🔥 Автоматический расчёт ключевых показателей (ТОП-нарушения)
+- 📅 Централизованное планирование инспекций
+- 📊 Формирование аналитической отчётности и дашбордов с drill-down
+- 🗂 Централизованное управление справочниками
+- 📱 Работа через два канала: мобильное приложение **Inspectra** и веб-интерфейс
+
+Используются только **бесплатные инструменты** (Open Source), доступные в РФ: VS Code, Git (GitHub), Docker Desktop.
+
+---
+
+## ✨ Возможности
+
+### Основное
+- ✅ Создание / редактирование / удаление карт наблюдений
+- ✅ Множественные нарушения в одной карте
+- ✅ Фотофиксация нарушений (JPG/PNG, до 10 МБ)
+- ✅ Автоматический расчёт «ТОП» (ЗПБ + остановка работ)
+- ✅ Ролевая модель с множественными ролями (RBAC)
+- ✅ Привязка подразделений к ПЕ
+- ✅ Закрепление инспекторов за ПЕ с историей
+
+### Мобильное приложение Inspectra
+- ✅ Биометрическая аутентификация (отпечаток / Face ID)
+- ✅ Полный оффлайн-режим (кэширование справочников и черновиков в SQLite)
+- ✅ Автоматическая синхронизация при появлении сети
+- ✅ Фотофиксация (камера + галерея) с EXIF-данными
+- ✅ Идемпотентность API через `client_id` (защита от дубликатов)
+
+### Планирование и уведомления
+- 📅 Автоматическая генерация планов проверок по пятницам в 18:00
+- ✅ Утверждение плана координатором / руководителем
+- 📧 Трёхканальные уведомления: Email + Push (FCM) + внутренняя лента
+- 📄 Отчёт «Выполнение плана»
+
+### Аналитика
+- 📈 Общий дашборд с KPI-карточками
+- 📉 Графики динамики нарушений
+- 🎯 3 уровня drill-down (Общий → Подразделение → Проверка)
+- 📄 Экспорт дашборда в PDF/DOCX
 
 ---
 
 ## 🛠 Технологический стек
 
 | Компонент | Технология |
-|-----------|------------|
-| Backend | Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic + Celery |
-| Database | PostgreSQL 15+ |
-| Cache / Broker | Redis 7+ |
-| File Storage | MinIO (S3-совместимое) |
-| Frontend (Web) | React 18 + TypeScript + Vite + Ant Design |
-| Mobile | Flutter 3.44 + Dart + Firebase (FCM) |
-| Контейнеризация | Docker + Docker Compose |
-| CI/CD | GitHub Actions |
-| Экспорт документов | jsPDF / pdfmake (frontend) + WeasyPrint (backend) |
+|-----------|-----------|
+| **Backend** | Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic + Celery |
+| **База данных** | PostgreSQL 15+ |
+| **Брокер / кэш** | Redis 7 |
+| **Frontend (Web)** | React 18 + TypeScript + Vite + Ant Design |
+| **Mobile** | Flutter (Dart) + Provider + SQLite (sqflite) + Firebase (FCM) |
+| **Хранение файлов** | MinIO (S3-совместимое) |
+| **Контейнеризация** | Docker + Docker Compose |
+| **CI/CD** | GitHub Actions |
+| **Экспорт документов** | python-docx / WeasyPrint |
+
+---
+
+## 🏗 Архитектура
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        КЛИЕНТЫ                               │
+├──────────────────────────┬──────────────────────────────────┤
+│   📱 Mobile (Inspectra)  │   🌐 Web (ЕХ:Инспектра-ИПБ)       │
+│   Flutter + SQLite       │   React + TypeScript              │
+│   Offline-first          │   Ant Design                      │
+└────────────┬─────────────┴──────────────┬───────────────────┘
+             │                            │
+             │  HTTPS / JWT               │  HTTPS / JWT
+             ▼                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 API (FastAPI) :8000                          │
+│     JWT-аутентификация · RBAC · Идемпотентность API          │
+└──┬───────────┬───────────┬───────────┬───────────┬──────────┘
+   │           │           │           │           │
+   ▼           ▼           ▼           ▼           ▼
+┌────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────┐
+│Postgres│ │ Redis  │ │  MinIO  │ │ Celery  │ │  Workers    │
+│  (БД)  │ │(broker)│ │ (фото)  │ │ (планы) │ │(email/push) │
+└────────┘ └────────┘ └─────────┘ └─────────┘ └─────────────┘
+```
+
+### Ключевые архитектурные решения
+
+**Offline-first архитектура** (для мобильного приложения):
+1. Инспектор создаёт карту наблюдений оффлайн → генерируется локальный `client_id` (UUID)
+2. При появлении сети → `POST /api/v1/inspections/sync` с массивом карт
+3. Backend проверяет идемпотентность по `client_id` (защита от дубликатов)
+4. Назначается номер проверки `INSP-YYMMDD-XXXX` (до 9999 проверок в день)
+5. Фото загружаются отдельно через `POST /api/v1/photos/mobile`
+
+**Паттерн «Два клиента» для MinIO:**
+- `s3_client` (внутренний `http://minio:9000`) — для загрузки/скачивания файлов
+- `s3_public_client` (публичный `http://localhost:9000`) — для генерации presigned URL, доступных браузеру
+
+---
+
+## 📁 Структура монорепозитория
+
+```
+ex-sib-inspectra/
+├── backend/                  # Серверная часть (FastAPI)
+│   ├── app/
+│   │   ├── api/v1/           # Эндпоинты: auth, inspections, photos,
+│   │   │                     #            references, users, export
+│   │   ├── core/             # config, database, minio_client, security
+│   │   ├── models/           # SQLAlchemy-модели
+│   │   ├── schemas/          # Pydantic-схемы
+│   │   ├── services/         # photo_service, export_service
+│   │   └── main.py
+│   ├── alembic/versions/     # Миграции БД
+│   ├── tests/                # Pytest-тесты
+│   ├── scripts/              # seed.py (заполнение справочников)
+│   └── Dockerfile
+│
+├── frontend/                 # Веб-интерфейс (React + Vite)
+│   ├── src/
+│   │   ├── components/       # Layout, ViolationRows, PhotoUpload
+│   │   ├── pages/            # Dashboard, Inspections, References,
+│   │   │                     # Users, Assignments и др.
+│   │   ├── api/              # HTTP-клиент
+│   │   ├── utils/            # auth, permissions (RBAC-гейты)
+│   │   └── types/            # TypeScript-типы
+│   └── Dockerfile
+│
+├── mobile/                   # Мобильное приложение Inspectra (Flutter)
+│   ├── lib/
+│   │   ├── core/             # Константы, корпоративные цвета
+│   │   ├── models/           # inspection_draft, reference_models,
+│   │   │                     # violation_photo
+│   │   ├── providers/        # auth, inspection, reference
+│   │   ├── screens/          # login, home, inspection
+│   │   ├── services/         # api_client, database_helper, photo_service,
+│   │   │                     # sync_manager, biometric_service и др.
+│   │   └── main.dart
+│   ├── android/              # Android-обёртка
+│   └── ios/                  # iOS-обёртка
+│
+├── docker/                   # Конфигурации nginx, скрипты инициализации
+├── docs/                     # Отчёты по этапам, ТЗ
+├── docker-compose.yml        # Оркестрация всех сервисов
+└── README.md
+```
 
 ---
 
 ## 🚀 Быстрый старт
 
-### Предварительные требования
+### Требования
 
-- Docker Desktop 29.6+ (Compose v5+)
-- Python 3.12+ (рекомендуется; 3.14 требует компиляции пакетов)
-- Node.js 18+ LTS
-- Flutter 3.44+ (для мобильного приложения)
-- Git 2.40+
+- Docker Desktop (с Docker Compose v2+)
+- Flutter SDK 3.x (для мобильного приложения)
+- Git
 
 ### 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/your-org/ex-sib-inspectra.git
+git clone <repo-url> ex-sib-inspectra
 cd ex-sib-inspectra
-```
-
-> 💡 **Примечание:** Внутреннее техническое имя репозитория (`ex-sib-inspectra`) сохранено для стабильности и обратной совместимости. Публичное название проекта — **ЕХ:Инспектра-СИПБ**.
-
-### 2. Настройка переменных окружения
-
-```bash
 cp .env.example .env
-# Отредактируйте .env: пароли PostgreSQL, MinIO, JWT-секреты, ключи Firebase
+# При необходимости отредактируйте .env
 ```
 
-### 3. Запуск инфраструктуры
+### 2. Запуск Backend + Frontend + инфраструктура
 
 ```bash
 docker-compose up -d
 ```
 
-Поднимутся сервисы:
+При первом запуске автоматически:
+- создаётся база данных PostgreSQL,
+- применяются миграции Alembic,
+- инициализируется MinIO (создаётся бакет для фото),
+- заполняются справочники через seed-скрипт.
 
-| Сервис | Контейнер | Порт | Доступ |
-|--------|-----------|------|--------|
-| PostgreSQL 15 | `exsib-postgres` | 5432 | БД: `exsib`, user: `exsib` |
-| Redis 7 | `exsib-redis` | 6379 | `localhost:6379` |
-| MinIO | `exsib-minio` | 9000 / 9001 | Console: http://localhost:9001 |
-| MinIO Init | `exsib-minio-init` | — | Авто-создание бакета `inspections` |
-
-Проверка: `docker-compose ps`
-
-### 4. Запуск Backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Linux / macOS
-# .venv\Scripts\activate         # Windows
-
-pip install -r requirements.txt
-pip install -e .                 # editable mode для Alembic
-
-alembic upgrade head             # Применение миграций
-python scripts/seed.py           # Наполнение справочников
-
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-- Backend: http://localhost:8000
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### 5. Запуск Frontend (ЕХ:Инспектра-СИПБ)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Веб-интерфейс: http://localhost:5173
-
-### 6. Запуск мобильного приложения (Inspectra)
+### 3. Запуск мобильного приложения
 
 ```bash
 cd mobile
@@ -148,222 +197,192 @@ flutter pub get
 flutter run
 ```
 
----
-
-## 📁 Структура проекта
-
-```
-ex-sib-inspectra/
-├── backend/                    # Python + FastAPI + SQLAlchemy + Alembic
-│   ├── app/
-│   │   ├── api/                # REST-эндпоинты (v1)
-│   │   ├── core/               # Конфигурация, security, deps
-│   │   ├── db/                 # Сессии, base
-│   │   ├── models/             # SQLAlchemy-модели
-│   │   ├── schemas/            # Pydantic-схемы
-│   │   ├── services/           # Бизнес-логика
-│   │   └── main.py
-│   ├── alembic/                # Миграции БД
-│   ├── scripts/                # Seed-скрипты
-│   ├── tests/                  # pytest
-│   ├── requirements.txt
-│   └── pyproject.toml
-│
-├── frontend/                   # React + TypeScript + Vite + Ant Design
-│   ├── src/
-│   │   ├── api/                # Axios-клиент
-│   │   ├── components/         # Переиспользуемые компоненты
-│   │   ├── pages/              # Inspections, Dashboard, ...
-│   │   ├── layouts/            # MainLayout, AuthLayout
-│   │   ├── store/              # Zustand
-│   │   ├── hooks/
-│   │   ├── utils/
-│   │   └── App.tsx
-│   ├── public/
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
-│
-├── mobile/                     # Flutter (Inspectra)
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── screens/
-│   │   ├── widgets/
-│   │   ├── services/           # API, FCM, offline
-│   │   ├── models/
-│   │   └── providers/          # Riverpod
-│   ├── test/
-│   └── pubspec.yaml
-│
-├── docker/                     # Nginx, скрипты
-├── docs/                       # Документация (ТЗ, отчёты)
-├── .github/workflows/          # CI/CD
-├── .vscode/                    # Настройки VS Code
-├── docker-compose.yml
-├── .env.example
-├── .env                        # (в .gitignore)
-├── .gitignore
-├── CHANGELOG.md
-└── README.md
-```
+> ⚠️ Для работы с backend укажите IP-адрес хост-машины в `mobile/lib/core/constants/api_constants.dart` (например, `http://192.168.0.112:8000`).
 
 ---
 
-## 🔐 Переменные окружения
+## 🌐 Точки доступа
 
-Полный список — в `.env.example`. Ключевые:
+| Сервис | URL |
+|--------|-----|
+| **Frontend (Web UI)** | http://localhost:5173 |
+| **Backend API** | http://localhost:8000 |
+| **Swagger UI** | http://localhost:8000/docs |
+| **MinIO Console** | http://localhost:9001 |
+| **PostgreSQL** | localhost:5432 |
+| **Redis** | localhost:6379 |
+
+---
+
+## 🔐 Тестовые учётные записи
+
+| Email | Роль |
+|-------|------|
+| `admin@exsib.ru` | Администратор |
+| `coordinator@exsib.ru` | Координатор |
+| `inspector@exsib.ru` | Инспектор |
+
+---
+
+## ⚙️ Переменные окружения
+
+Ключевые переменные в `.env` / `docker-compose.yml`:
+
+| Переменная | Описание | Пример |
+|-----------|----------|--------|
+| `DB_HOST` | Хост PostgreSQL | `postgres` (в Docker) |
+| `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Параметры БД | `exsib` |
+| `SECRET_KEY` | Секрет для JWT | случайная строка |
+| `MINIO_ENDPOINT` | Внутренний адрес MinIO | `http://minio:9000` |
+| `MINIO_PUBLIC_ENDPOINT` | Публичный адрес MinIO (для presigned URL) | `http://localhost:9000` |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Учётные данные MinIO | `minioadmin` |
+| `REDIS_URL` | Адрес Redis | `redis://redis:6379/0` |
+
+> ⚠️ Сервисные ключи Firebase (FCM) храните в переменных окружения и **не коммитьте в Git**.
+
+---
+
+## 📋 Основные команды
+
+### Docker
+
+| Действие | Команда |
+|----------|---------|
+| Запуск всех сервисов | `docker-compose up -d` |
+| Остановка | `docker-compose down` |
+| Просмотр логов backend | `docker-compose logs -f backend` |
+| Пересборка без кэша | `docker-compose build --no-cache` |
+| Полный сброс (БД + данные) | `docker-compose down -v` |
+
+### Backend
 
 ```bash
-# PostgreSQL
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=exsib
-POSTGRES_USER=exsib
-POSTGRES_PASSWORD=***
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# MinIO
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=***
-MINIO_BUCKET=inspections
-
-# JWT
-JWT_SECRET_KEY=***
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# Firebase (FCM) — для push-уведомлений в Inspectra
-FIREBASE_PROJECT_ID=***
-FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
-
-# App
-APP_ENV=development
-APP_DEBUG=true
-```
-
----
-
-## 📡 Основные API-эндпоинты
-
-Полная документация — http://localhost:8000/docs
-
-| Группа | Эндпоинты |
-|--------|-----------|
-| **Inspections** | `POST/GET /api/v1/inspections`, `GET/PUT/DELETE /api/v1/inspections/{id}` |
-| **Violations** | `POST /api/v1/inspections/{id}/violations`, `PUT/DELETE /api/v1/violations/{id}` |
-| **Photos** | `POST /api/v1/violations/{id}/photos`, `GET /api/v1/photos/{id}/original\|thumbnail` |
-| **Plans** | `POST/GET /api/v1/plans`, `POST /api/v1/plans/{id}/approve`, `POST /api/v1/plans/generate` |
-| **Assignments** | `GET/POST /api/v1/users/{id}/assignments`, `POST /api/v1/assignments/{id}/terminate` |
-| **References** | `/api/v1/references/pe\|departments\|contractors\|work-types\|zpb-rules` |
-| **Dashboard** | `/api/v1/dashboard/kpi`, `/charts/*`, `/export/pdf` |
-| **Reports** | `/api/v1/reports/plan-execution`, `/api/v1/reports/schedule` |
-| **Notifications** | `GET /api/v1/notifications`, `POST /api/v1/notifications/{id}/read` |
-| **Auth** | `POST /api/v1/auth/login`, `/refresh`, `/logout` |
-
----
-
-## 📅 Этапы разработки
-
-| Этап | Описание | Срок |
-|------|----------|------|
-| 0 | Подготовка окружения | ✅ Завершён |
-| 1 | Проектирование БД | ✅ Завершён |
-| 2 | Backend: базовый CRUD + роли | 2 недели |
-| 3 | Backend: планирование + уведомления | 1 неделя |
-| 4 | Backend: фото + бизнес-логика | 1 неделя |
-| 5 | Frontend: админка + формы | 3 недели |
-| 6 | Frontend: дашборд + экспорт PDF | 1 неделя |
-| 7 | Тестирование | 1 неделя |
-| 8 | Mobile app Inspectra (MVP + оффлайн + QR) | 4 недели |
-| 9 | Интеграция, бэкапы, приёмка | 2 недели |
-| **Итого** | | **~16 недель** |
-
----
-
-## 📚 Документация
-
-Все документы находятся в папке `docs/`:
-
-- `ТЗ_ЕХ_Инспектра-СИПБ_v3.4.docx` — Техническое задание (актуальная версия)
-- `Отчет_Этап_0_Подготовка.docx` — Отчёт о подготовке окружения
-- `Отчет_Этап_1_Проектирование_БД.docx` — Отчёт о проектировании БД
-
----
-
-## 🧪 Тестирование
-
-```bash
-# Backend
 cd backend
-pytest
-
-# Frontend
-cd frontend
-npm test
-
-# Mobile
-cd mobile
-flutter test
+uvicorn app.main:app --reload          # локальный запуск
+alembic upgrade head                   # применить миграции
+alembic revision --autogenerate -m "..."  # создать миграцию
+pytest                                 # тесты
+python scripts/seed.py                 # заполнить справочники
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm install        # зависимости
+npm run dev        # dev-сервер (http://localhost:5173)
+npm run build      # production-сборка
+```
+
+### Mobile
+
+```bash
+cd mobile
+flutter pub get            # зависимости
+flutter run                # запуск на устройстве/эмуляторе
+flutter build apk --release   # сборка APK
+```
+
+---
+
+## 🔌 Основные API-эндпоинты
+
+### Инспекции
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/v1/inspections` | Создать проверку |
+| `GET` | `/api/v1/inspections` | Список (с фильтрами и пагинацией) |
+| `GET` | `/api/v1/inspections/{id}` | Детали |
+| `POST` | `/api/v1/inspections/sync` | **Пакетная синхронизация** (mobile) |
+
+### Фотографии
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/v1/violations/{id}/photos` | Загрузить фото (web) |
+| `POST` | `/api/v1/photos/mobile` | **Загрузить фото** (mobile) |
+| `GET` | `/api/v1/photos/{id}/original` | Presigned URL оригинала |
+| `GET` | `/api/v1/photos/{id}/thumbnail` | Presigned URL миниатюры |
+
+### Справочники и пользователи
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/v1/references/pe` | Производственные единицы |
+| `GET` | `/api/v1/references/departments?pe_id={id}` | Подразделения (фильтр по ПЕ) |
+| `GET` | `/api/v1/references/work-types` | Виды работ |
+| `GET` | `/api/v1/references/zpb-rules` | Золотые Правила Безопасности |
+| `GET` | `/api/v1/users` | Пользователи |
+
+Полная интерактивная документация — в **Swagger UI**: `http://localhost:8000/docs`
+
+---
+
+## 📊 Статус разработки
+
+| Этап | Описание | Статус |
+|------|----------|--------|
+| 0 | Подготовка окружения | ✅ Завершён |
+| 1 | Проектирование БД и API | ✅ Завершён |
+| 2 | Backend: базовый CRUD + роли | ✅ Завершён |
+| 2.5 | Контейнеризация | ✅ Завершён |
+| 2.6 | Интеграция, стабилизация, offline-first | ✅ Завершён |
+| 3 | Планирование + уведомления (Celery, FCM) | ⏳ В очереди |
+| 4 | Backend: фото + бизнес-логика | ✅ Завершён |
+| 5 | Frontend: админка + формы | ✅ Завершён |
+| 6 | Frontend: дашборд с drill-down + PDF | ⏳ В очереди |
+| 7 | Тестирование и исправления | ⏳ В очереди |
+| 8.1 | Mobile: базовый функционал + оффлайн | ✅ Завершён |
+| 8.2 | Mobile: фотофиксация | ✅ Завершён |
+| 8.3 | Mobile: QR-сканирование объектов | ⏳ В очереди |
+| 8.4 | Mobile: Push-уведомления (FCM) | ⏳ В очереди |
+| 9 | Интеграция, бэкапы, приёмочные испытания | ⏳ В очереди |
+
+### Ближайшие шаги
+1. **Этап 6** — Frontend: дашборд с drill-down + экспорт PDF
+2. **Этап 3** — Backend: планирование + уведомления (Celery + Redis + FCM)
+3. **Этап 8.3** — Mobile: сканирование QR-кодов объектов
+4. Исправление проблемы с удержанием сессии в мобильном приложении
+
+---
+
+## ⚠️ Известные ограничения
+
+1. **Экспорт PDF с кириллицей.** Библиотека `xhtml2pdf` имеет баг на Windows (короткие имена путей 8.3 блокируют копирование шрифта). Временно используется экспорт в **DOCX**. Полное решение — при развёртывании на Linux-сервере (Этап 9) либо переход на WeasyPrint / Headless Chrome.
+
+2. **Сессия в мобильном приложении.** Авторизация пользователя периодически не сохраняется (токены «утекают»). Проблема диагностирована, исправление запланировано.
+
+---
+
+## 📖 Документация
+
+| Документ | Расположение |
+|----------|--------------|
+| Техническое задание v3.5 | `docs/ТЗ_ЕХ_Инспектра-ИПБ_v3.5.docx` |
+| Отчёт Этап 1 (Проектирование БД) | `docs/Отчет_Этап_1_Проектирование_БД.docx` |
+| Отчёт Этап 2.5 (Контейнеризация) | `docs/Отчет_Этап_2.5_Контейнеризация.docx` |
+| Отчёты о ходе разработки | `docs/` |
 
 ---
 
 ## 🔒 Безопасность
 
-- JWT-аутентификация (access 15 мин + refresh 7 дней)
-- Хеширование паролей: bcrypt
-- Ролевая модель (RBAC) с множественными ролями
-- HTTPS/TLS 1.3
-- Валидация входных данных (Pydantic)
-- Защита от SQL-инъекций (ORM) и XSS (React)
-- CORS-политика, Rate limiting
-- Приватные URL для файлов с временными подписями (presigned URLs, 15 мин)
-
----
-
-## 📦 Резервное копирование
-
-Автоматические бэкапы настраиваются на Этапе 9:
-- **PostgreSQL:** `pg_dump` по расписанию
-- **MinIO:** синхронизация бакета `inspections`
-
----
-
-## 🤝 Вклад в проект
-
-1. Создайте ветку от `develop`: `git checkout -b feature/my-feature`
-2. Внесите изменения и закоммитьте
-3. Откройте Pull Request в `develop`
-
-Перед коммитом убедитесь, что:
-- Пройдены все тесты (`pytest`, `npm test`, `flutter test`)
-- Код отформатирован (`black`, `prettier`, `dart format`)
-- Обновлена документация (при необходимости)
+- JWT-токены: access (15 мин) + refresh (7 дней)
+- Хеширование паролей: **bcrypt**
+- Ролевая модель доступа (RBAC) с множественными ролями
+- Валидация всех входных данных (Pydantic)
+- Защита от SQL-инъекций (SQLAlchemy ORM)
+- Presigned URL для файлов (время жизни 15 мин)
+- Биометрическая аутентификация в мобильном приложении
+- Шифрованное хранение учётных данных (KeyStore / Keychain)
 
 ---
 
 ## 📄 Лицензия
 
-Проприетарная. Все права принадлежат ГК «ЕВРОХИМ».
-Распространение и использование без письменного разрешения запрещено.
+Проект разработан для внутреннего использования ГК «ЕВРОХИМ».
 
 ---
 
-## 📞 Контакты
-
-- **Заказчик:** ГК «ЕВРОХИМ», Департамент производственной безопасности
-- **Технический руководитель:** [указать]
-- **Команда разработки:** [указать]
-- **Email:** [указать]
-
----
-
-> **Примечание:** Внутренние технические имена (имена Docker-контейнеров, БД, переменных окружения) сохранены как `exsib` для обеспечения стабильности работы системы и обратной совместимости. Публичное название продукта — **ЕХ:Инспектра-СИПБ**.
-
----
-
-*© 2026 ГК «ЕВРОХИМ». Все права защищены.*
+<p align="center">
+  <b>ЕХ:Инспектра-ИПБ</b> · Система инспекций производственной безопасности<br>
+  Заказчик: ГК «ЕВРОХИМ» · 2026
+</p>

@@ -105,6 +105,15 @@ const InspectionEdit: React.FC = () => {
     if (!id) return;
     setSaving(true);
     try {
+      // 🔍 Логируем данные перед отправкой для отладки
+      console.log('📤 Отправляемые данные:', {
+        date: values.date.format('YYYY-MM-DD'),
+        pe_id: values.pe_id,
+        department_id: values.department_id,
+        work_location: values.work_location?.trim() || 'Не указано',
+        contractor_id: values.contractor_id || null,
+      });
+
       const updateData: any = {
         date: values.date.format('YYYY-MM-DD'),
         pe_id: values.pe_id,
@@ -120,8 +129,16 @@ const InspectionEdit: React.FC = () => {
       message.success('Проверка обновлена');
       navigate(`/inspections/${id}`);
     } catch (error: any) {
-      console.error('Ошибка обновления:', error);
-      message.error('Ошибка обновления проверки');
+      console.error('❌ Ошибка обновления:', error);
+      
+      // 🔍 Детальная информация об ошибке
+      if (error.response?.data) {
+        console.error('Детали ошибки:', error.response.data);
+        const errorMsg = error.response.data.detail || 'Ошибка обновления проверки';
+        message.error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+      } else {
+        message.error('Ошибка обновления проверки');
+      }
     } finally {
       setSaving(false);
     }
@@ -132,17 +149,32 @@ const InspectionEdit: React.FC = () => {
   }
 
   if (!inspectionData) {
-    return <Alert title="Ошибка" description="Проверка не найдена" type="error" showIcon />;
+    return <Alert message="Ошибка" description="Проверка не найдена" type="error" showIcon />;
   }
 
   if (inspectionData.status !== 'draft') {
     return (
       <div>
+        <Breadcrumb style={{ marginBottom: 16 }}>
+          <Breadcrumb.Item>
+            <Link to="/"><HomeOutlined /> Главная</Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>
+            <Link to="/inspections">Карты наблюдений</Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>
+            <Link to={`/inspections/${id}`}>{inspectionData.inspection_number}</Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>
+            Редактирование
+          </Breadcrumb.Item>
+        </Breadcrumb>
+
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/inspections/${id}`)} style={{ marginBottom: 16 }}>
           Назад к проверке
         </Button>
         <Alert
-          title="Редактирование недоступно"
+          message="Редактирование недоступно"
           description={`Проверка имеет статус "${inspectionData.status === 'submitted' ? 'Завершена' : 'Утверждена'}".`}
           type="warning"
           showIcon
@@ -153,7 +185,6 @@ const InspectionEdit: React.FC = () => {
 
   return (
     <div>
-      {/* ✅ Осмысленные breadcrumbs с реальным номером проверки */}
       <Breadcrumb style={{ marginBottom: 16 }}>
         <Breadcrumb.Item>
           <Link to="/"><HomeOutlined /> Главная</Link>
@@ -180,7 +211,7 @@ const InspectionEdit: React.FC = () => {
             label="Дата проведения"
             rules={[{ required: true, message: 'Выберите дату' }]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
           </Form.Item>
 
           <Form.Item

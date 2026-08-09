@@ -1,104 +1,307 @@
-"""SQLAlchemy модели для проверок, нарушений и фотографий."""
+"""Модели для карт наблюдений и нарушений."""
 import uuid
 from datetime import date, datetime
-from enum import Enum
+from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, CheckConstraint, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.models.base import Base
 
-
-# Оставляем Enum для использования в Pydantic-схемах и бизнес-логике
-class InspectionSource(str, Enum):
-    mobile = "mobile"
-    web = "web"
-
-
-class InspectionStatus(str, Enum):
-    draft = "draft"
-    submitted = "submitted"
-    approved = "approved"
+if TYPE_CHECKING:
+    from app.models.references import Contractor, Department, PE, WorkType, ZPBRule
+    from app.models.users import User
+    from app.models.planning import InspectionPlan  # <-- ДОБАВЛЕНО для типизации
 
 
 class Inspection(Base):
+    """Шапка карты наблюдения (Inspection)."""
     __tablename__ = "inspection"
-    
-    # CheckConstraint гарантирует, что в БД попадут только допустимые значения
-    __table_args__ = (
-        CheckConstraint("source IN ('mobile', 'web')", name="check_inspection_source"),
-        CheckConstraint("status IN ('draft', 'submitted', 'approved')", name="check_inspection_status"),
-        {"comment": "Шапка проверки"}
+
+    # 🔑 ПЕРВИЧНЫЙ КЛЮЧ
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4,
+        comment="Уникальный идентификатор проверки"
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    inspection_number = Column(String(20), unique=True, nullable=False, index=True)
-    date = Column(Date, nullable=False, index=True)
-    
-    pe_id = Column(UUID(as_uuid=True), ForeignKey("pe.id", ondelete="RESTRICT"), nullable=False, index=True)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("department.id", ondelete="RESTRICT"), nullable=False, index=True)
-    inspector_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="RESTRICT"), nullable=False, index=True)
-    contractor_id = Column(UUID(as_uuid=True), ForeignKey("contractor.id", ondelete="SET NULL"), nullable=True, index=True)
-    plan_id = Column(UUID(as_uuid=True), ForeignKey("inspection_plan.id", ondelete="SET NULL"), nullable=True, index=True)
-    
-    work_location = Column(String(255), nullable=False)
-    
-    # Используем String вместо SQLEnum для избежания проблем с приведением типов в PostgreSQL
-    source = Column(String(20), nullable=False, index=True)
-    status = Column(String(20), nullable=False, index=True)
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # 🔑 НОВОЕ ПОЛЕ: UUID клиента для offline-first архитектуры
+    client_id: Mapped[str] = mapped_column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="UUID клиента (web/mobile) для offline-идентификации и идемпотентности"
+    )
 
-    # Relationships
-    pe = relationship("PE")
-    department = relationship("Department")
-    inspector = relationship("User", foreign_keys=[inspector_id])
-    contractor = relationship("Contractor")
-    plan = relationship("InspectionPlan", back_populates="inspections")
-    violations = relationship("ViolationRecord", back_populates="inspection", cascade="all, delete-orphan", lazy="selectin")
+    inspection_number: Mapped[str] = mapped_column(
+        String(20),
+        unique=True,
+        nullable=False,
+        comment="Уникальный номер проверки в формате INSP-YYMMDD-XXXX"
+    )
+
+    date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+        comment="Дата проведения проверки"
+    )
+
+    pe_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("pe.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Производственная единица"
+    )
+
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("department.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Подразделение"
+    )
+
+    inspector_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Инспектор, проводивший проверку"
+    )
+
+    contractor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contractor.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Подрядная организация"
+    )
+
+    work_location: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Место производства работ"
+    )
+
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("inspection_plan.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Связь с планом инспекций"
+    )
+
+    source: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Источник: mobile или web"
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="draft",
+        index=True,
+        comment="Статус: draft, submitted, approved"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        comment="Дата и время создания"
+    )
+
+    # ==================== Relationships ====================
+    pe: Mapped["PE"] = relationship("PE", lazy="joined")
+    department: Mapped["Department"] = relationship("Department", lazy="joined")
+    inspector: Mapped["User"] = relationship("User", foreign_keys=[inspector_id], lazy="joined")
+    contractor: Mapped[Optional["Contractor"]] = relationship("Contractor", lazy="joined")
+    
+    # 🔑 ИСПРАВЛЕНИЕ: Добавлена связь с планом, которую требовал InspectionPlan
+    plan: Mapped[Optional["InspectionPlan"]] = relationship(
+        "InspectionPlan", 
+        back_populates="inspections", 
+        lazy="joined"
+    )
+    
+    violations: Mapped[List["ViolationRecord"]] = relationship(
+        "ViolationRecord",
+        back_populates="inspection",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="ViolationRecord.order"
+    )
 
 
 class ViolationRecord(Base):
+    """Строка наблюдения (ViolationRecord)."""
     __tablename__ = "violation_record"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    inspection_id = Column(UUID(as_uuid=True), ForeignKey("inspection.id", ondelete="CASCADE"), nullable=False, index=True)
-    work_type_id = Column(UUID(as_uuid=True), ForeignKey("work_type.id", ondelete="RESTRICT"), nullable=False, index=True)
-    zpb_rule_id = Column(UUID(as_uuid=True), ForeignKey("zpb_rule.id", ondelete="SET NULL"), nullable=True, index=True)
-    
-    is_safe = Column(Boolean, nullable=False, default=False)
-    violation_description = Column(Text, nullable=True)
-    is_gross_violation = Column(Boolean, nullable=False, default=False)
-    is_work_stopped = Column(Boolean, nullable=False, default=False)
-    is_top_violation = Column(Boolean, nullable=False, default=False, index=True)
-    order = Column(Integer, nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+
+    inspection_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("inspection.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Ссылка на проверку"
+    )
+
+    work_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("work_type.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Вид работ"
+    )
+
+    is_safe: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Флаг 'Все безопасно'"
+    )
+
+    violation_description: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Описание нарушения"
+    )
+
+    is_gross_violation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Флаг 'Грубейшее нарушение'"
+    )
+
+    is_work_stopped: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Флаг 'Остановка работ'"
+    )
+
+    zpb_rule_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("zpb_rule.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Нарушенное ЗПБ"
+    )
+
+    is_top_violation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        index=True,
+        comment="Вычисляемое поле: ТОП-нарушение"
+    )
+
+    order: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Порядок строки"
+    )
 
     # Relationships
-    inspection = relationship("Inspection", back_populates="violations")
-    work_type = relationship("WorkType")
-    zpb_rule = relationship("ZPBRule")
-    photos = relationship("ViolationPhoto", back_populates="violation", cascade="all, delete-orphan", lazy="selectin")
+    inspection: Mapped["Inspection"] = relationship("Inspection", back_populates="violations")
+    work_type: Mapped["WorkType"] = relationship("WorkType", lazy="joined")
+    zpb_rule: Mapped[Optional["ZPBRule"]] = relationship("ZPBRule", lazy="joined")
+    
+    photos: Mapped[List["ViolationPhoto"]] = relationship(
+        "ViolationPhoto",
+        back_populates="violation",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
 
 
 class ViolationPhoto(Base):
+    """Фотография нарушения (ViolationPhoto)."""
     __tablename__ = "violation_photo"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    violation_id = Column(UUID(as_uuid=True), ForeignKey("violation_record.id", ondelete="CASCADE"), nullable=False, index=True)
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=False, index=True)
-    
-    file_path = Column(String(500), nullable=False)
-    thumbnail_path = Column(String(500), nullable=True)
-    original_filename = Column(String(255), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    mime_type = Column(String(50), nullable=False)
-    
-    caption = Column(String(500), nullable=True)
-    gps_latitude = Column(Float, nullable=True)
-    gps_longitude = Column(Float, nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+
+    violation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("violation_record.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Ссылка на нарушение"
+    )
+
+    file_path: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        comment="Путь к оригиналу в MinIO"
+    )
+
+    thumbnail_path: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        comment="Путь к миниатюре в MinIO"
+    )
+
+    original_filename: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Исходное имя файла"
+    )
+
+    file_size: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Размер файла в байтах"
+    )
+
+    mime_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="MIME-тип"
+    )
+
+    caption: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Подпись к фото"
+    )
+
+    gps_latitude: Mapped[Optional[float]] = mapped_column(
+        nullable=True,
+        comment="Широта"
+    )
+
+    gps_longitude: Mapped[Optional[float]] = mapped_column(
+        nullable=True,
+        comment="Долгота"
+    )
+
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        comment="Дата загрузки"
+    )
+
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Кто загрузил"
+    )
 
     # Relationships
-    violation = relationship("ViolationRecord", back_populates="photos")
-    uploader = relationship("User", foreign_keys=[uploaded_by])
+    violation: Mapped["ViolationRecord"] = relationship("ViolationRecord", back_populates="photos")

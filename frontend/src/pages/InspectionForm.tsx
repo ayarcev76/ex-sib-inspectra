@@ -70,8 +70,11 @@ const InspectionForm: React.FC = () => {
         return;
       }
 
-      // Создаем проверку с ПУСТЫМ массивом нарушений
+      // 🔑 ГЕНЕРИРУЕМ УНИКАЛЬНЫЙ ID КЛИЕНТА (UUID v4)
+      const clientId = crypto.randomUUID();
+
       const inspectionData = {
+        client_id: clientId, // 🔑 ДОБАВЛЯЕМ ЕГО В ЗАПРОС
         date: values.date.format('YYYY-MM-DD'),
         pe_id: values.pe_id,
         department_id: values.department_id,
@@ -80,20 +83,19 @@ const InspectionForm: React.FC = () => {
         work_location: values.work_location,
         source: 'web',
         status: 'draft',
-        violations: [], // Пустой массив — нарушения добавляются на странице редактирования
+        violations: [],
       };
 
-      const response = await apiClient.post('/inspections', inspectionData);
+      // 🔑 ВАЖНО: добавлен слэш в конце '/inspections/' чтобы избежать 307 редиректа FastAPI
+      const response = await apiClient.post('/inspections/', inspectionData);
       const newInspectionId = response.data.id;
       
-      message.success('Проверка создана. Теперь добавьте наблюдения.');
-      
-      // Перенаправляем на страницу редактирования
+      message.success('Карта наблюдения создана. Теперь добавьте строки наблюдений.');
       navigate(`/inspections/${newInspectionId}/edit`);
     } catch (error: any) {
-      console.error('Ошибка создания проверки:', error);
-      const errorMsg = error.response?.data?.detail || 'Ошибка создания проверки';
-      message.error(errorMsg);
+      console.error('Ошибка создания карты наблюдения:', error);
+      const errorMsg = error.response?.data?.detail || 'Ошибка создания карты наблюдения';
+      message.error(typeof errorMsg === 'string' ? errorMsg : 'Произошла неизвестная ошибка');
     } finally {
       setLoading(false);
     }
@@ -104,14 +106,14 @@ const InspectionForm: React.FC = () => {
       <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/inspections')} style={{ marginBottom: 16 }}>
         Назад к списку
       </Button>
-      <Card title="Создание проверки">
+      <Card title="Создание карты наблюдения">
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
             name="date"
             label="Дата проведения"
             rules={[{ required: true, message: 'Выберите дату' }]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
           </Form.Item>
 
           <Form.Item
@@ -157,8 +159,14 @@ const InspectionForm: React.FC = () => {
           </Form.Item>
 
           <Form.Item style={{ marginTop: 24 }}>
-            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} style={{ marginRight: 8 }}>
-              Создать проверку
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<SaveOutlined />}
+              loading={loading}
+              style={{ marginRight: 8 }}
+            >
+              Создать карту наблюдения
             </Button>
             <Button onClick={() => navigate('/inspections')}>Отмена</Button>
           </Form.Item>
