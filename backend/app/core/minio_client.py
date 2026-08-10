@@ -1,8 +1,10 @@
 """Клиент MinIO для работы с S3-совместимым хранилищем."""
 import logging
+import re
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
+from urllib.parse import urlparse, urlunparse
 
 from app.core.config import settings
 
@@ -25,7 +27,10 @@ class MinIOClient:
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             region_name=settings.MINIO_REGION,
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                s3={"addressing_style": "path"},
+            ),
         )
         self.bucket = settings.MINIO_BUCKET
 
@@ -54,19 +59,27 @@ class MinIOClient:
 
     def generate_presigned_url(self, object_key: str, expiration: int = 900) -> str:
         """
-        Генерация presigned URL.
-        ВАЖНО: Создаем временный клиент с ПУБЛИЧНЫМ эндпоинтом, 
-        чтобы криптографическая подпись рассчитывалась для http://localhost:9000, 
-        который понимает браузер пользователя.
+        Генерация presigned URL для браузера.
+        
+        ВАЖНО: Подпись вычисляется по ПУБЛИЧНОМУ endpoint (host.docker.internal 
+        или localhost), который использует браузер. Это необходимо, потому что 
+        AWS Signature V4 включает Host header в подпись.
+        
+        Внутри Docker: MINIO_PUBLIC_ENDPOINT=http://host.docker.internal:9000
+        Локально: MINIO_PUBLIC_ENDPOINT=http://localhost:9000
         """
         try:
+            # Создаём клиент с ПУБЛИЧНЫМ endpoint — подпись будет корректной для браузера
             public_s3_client = boto3.client(
                 "s3",
                 endpoint_url=settings.MINIO_PUBLIC_ENDPOINT,
                 aws_access_key_id=settings.MINIO_ACCESS_KEY,
                 aws_secret_access_key=settings.MINIO_SECRET_KEY,
                 region_name=settings.MINIO_REGION,
-                config=Config(signature_version="s3v4"),
+                config=Config(
+                    signature_version="s3v4",
+                    s3={"addressing_style": "path"},
+                ),
             )
             
             url = public_s3_client.generate_presigned_url(

@@ -199,8 +199,8 @@ class PhotoService:
             file_extension = "jpg" if mime_type in ["image/jpeg", "image/jpg"] else "png"
             unique_id = str(uuid.uuid4())
             
-            original_key = f"photos/{timestamp}/{violation_id}/{unique_id}_original.{file_extension}"
-            thumbnail_key = f"photos/{timestamp}/{violation_id}/{unique_id}_thumb.jpg"
+            original_key = f"{timestamp}/{violation_id}/{unique_id}_original.{file_extension}"
+            thumbnail_key = f"{timestamp}/{violation_id}/{unique_id}_thumb.jpg"
             
             logger.info(f"📁 Пути: original={original_key}, thumbnail={thumbnail_key}")
             
