@@ -5,7 +5,7 @@
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, inspections, photos, references, users, export
+from app.api.v1 import auth, inspections, photos, references, users, export, analytics
 
 router = APIRouter()
 
@@ -34,6 +34,9 @@ router.include_router(photos.mobile_router)
 
 # ─── Экспорт в PDF/DOCX ───────────────────────────────────────
 router.include_router(export.router)
+
+# ─── Аналитика и дашборд ──────────────────────────────────────
+router.include_router(analytics.router)
 
 
 # ══════════════════════════════════════════════════════════════

@@ -101,7 +101,13 @@ const InspectionEdit: React.FC = () => {
     }
   };
 
-  const onFinish = async (values: any) => {
+  const onFinish = async (values: {
+    date: any;
+    pe_id: string;
+    department_id: string;
+    work_location: string;
+    contractor_id?: string;
+  }) => {
     if (!id) return;
     setSaving(true);
     try {
